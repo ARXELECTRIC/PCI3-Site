@@ -1,1 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCI3 Cyber-Pigeon Clicker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
 
+        :root {
+            --cyan: #00f3ff;
+            --dark: #090a0f;
+            --panel: rgba(9, 10, 15, 0.85);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--dark);
+            font-family: 'Fira Code', monospace;
+            color: var(--cyan);
+            user-select: none;
+        }
+
+        /* Topographic / Grid HUD Background */
+        #bg-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+        }
+
+        /* Sci-Fi HUD Panels */
+        .hud-panel {
+            position: absolute;
+            z-index: 10;
+            background: var(--panel);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1);
+            backdrop-filter: blur(5px);
+            padding: 20px;
+            border-radius: 4px;
+        }
+
+        #stats-panel {
+            top: 20px;
+            left: 20px;
+            min-width: 250px;
+        }
+
+        #stats-panel h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--cyan);
+            padding-bottom: 5px;
+        }
+
+        .stat-line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        #upgrades-panel {
+            top: 20px;
+            right: 20px;
+            width: 300px;
+        }
+
+        .upgrade-btn {
+            background: transparent;
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            color: var(--cyan);
+            font-family: 'Fira Code', monospace;
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upgrade-btn:hover:not(:disabled) {
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.3);
+        }
+
+        .upgrade-btn:disabled {
+            color: #444;
+            border-color: #333;
+            cursor: not-allowed;
+        }
+
+        .upgrade-name { font-weight: bold; display: block; margin-bottom: 4px; }
+        .upgrade-cost { font-size: 0.8rem; opacity: 0.8; float: right; }
+
+        /* Floating Text */
+        .floating-text {
+            position: absolute;
+            color: var(--cyan);
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 20;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 0 0 8px var(--cyan);
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bg-overlay"></div>
+    <div id="canvas-container"></div>
+
+    <div id="stats-panel" class="hud-panel">
+        <h1>PCI3 Data Core</h1>
+        <div class="stat-line"><span>DATA CRUMBS:</span> <span id="crumb-count">0</span></div>
+        <div class="stat-line"><span>CRUMBS / SEC:</span> <span id="cps-count">0.0</span></div>
+        <div class="stat-line"><span>CLICK POWER:</span> <span id="click-power">1</span></div>
+    </div>
+
+    <div id="upgrades-panel" class="hud-panel">
+        <h1 style="margin: 0 0 15px 0; font-size: 1rem; border-bottom: 1px solid var(--cyan); padding-bottom: 5px;">SYSTEM UPGRADES</h1>
+        
+        <button class="upgrade-btn" id="upg-auto" onclick="buyUpgrade('auto')">
+            <span class="upgrade-cost" id="cost-auto">15 C</span>
+            <span class="upgrade-name">Auto-Peckers</span>
+            <span style="font-size: 0.75rem;">+0.5 CPS per drone</span>
+        </button>
+
+        <button class="upgrade-btn" id="upg-cpu" onclick="buyUpgrade('cpu')">
+            <span class="upgrade-cost" id="cost-cpu">50 C</span>
+            <span class="upgrade-name">Overclocked CPU</span>
+            <span style="font-size: 0.75rem;">+1 Crumb per click</span>
+        </button>
+
+        <button class="upgrade-btn" id="upg-solar" onclick="buyUpgrade('solar')">
+            <span class="upgrade-cost" id="cost-solar">200 C</span>
+            <span class="upgrade-name">Feather Solar Arrays</span>
+            <span style="font-size: 0.75rem;">+5 CPS</span>
+        </button>
+
+        <button class="upgrade-btn" id="upg-quantum" onclick="buyUpgrade('quantum')">
+            <span class="upgrade-cost" id="cost-quantum">1000 C</span>
+            <span class="upgrade-name">Quantum Coo Synth</span>
+            <span style="font-size: 0.75rem;">Massive CPS Boost</span>
+        </button>
+    </div>
+
+    <!-- Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- GAME STATE & STORAGE ---
+        let state = {
+            crumbs: 0,
+            cps: 0,
+            clickPower: 1,
+            costs: { auto: 15, cpu: 50, solar: 200, quantum: 1000 },
+            owned: { auto: 0, cpu: 0, solar: 0, quantum: 0 }
+        };
+
+        const savedState = localStorage.getItem('pci3_save');
+        if (savedState) {
+            state = { ...state, ...JSON.parse(savedState) };
+        }
+
+        // --- WEB AUDIO API (Synth Sounds) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'peck') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'upgrade') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        // --- THREE.JS SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x090a0f, 0.05);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x222233);
+        scene.add(ambientLight);
+        
+        const cyanLight = new THREE.PointLight(0x00f3ff, 2, 10);
+        cyanLight.position.set(2, 3, 2);
+        scene.add(cyanLight);
+
+        // --- ROBOTIC PIGEON MODEL ---
+        const pigeonGroup = new THREE.Group();
+        scene.add(pigeonGroup);
+
+        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1c23, roughness: 0.3, metalness: 0.8 });
+        const cyanMaterial = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
+
+        // Body (Armor plated)
+        const bodyGeo = new THREE.BoxGeometry(1.5, 1, 2);
+        const body = new THREE.Mesh(bodyGeo, darkMaterial);
+        pigeonGroup.add(body);
+
+        // Head
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.8, 0.8);
+        const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const head = new THREE.Mesh(headGeo, darkMaterial);
+        headGroup.add(head);
+
+        // Beak (Cyan optic)
+        const beakGeo = new THREE.ConeGeometry(0.2, 0.5, 4);
+        const beak = new THREE.Mesh(beakGeo, cyanMaterial);
+        beak.rotation.x = Math.PI / 2;
+        beak.position.set(0, -0.1, 0.6);
+        headGroup.add(beak);
+
+        // Cyber Eye
+        const eyeGeo = new THREE.SphereGeometry(0.15, 16, 16);
+        const eye = new THREE.Mesh(eyeGeo, cyanMaterial);
+        eye.position.set(0.4, 0.1, 0);
+        const eye2 = eye.clone();
+        eye2.position.set(-0.4, 0.1, 0);
+        headGroup.add(eye);
+        headGroup.add(eye2);
+
+        pigeonGroup.add(headGroup);
+
+        // Wings
+        const wingGeo = new THREE.BoxGeometry(0.2, 0.8, 1.8);
+        const leftWing = new THREE.Mesh(wingGeo, darkMaterial);
+        leftWing.position.set(0.85, 0.1, 0);
+        const rightWing = new THREE.Mesh(wingGeo, darkMaterial);
+        rightWing.position.set(-0.85, 0.1, 0);
+        pigeonGroup.add(leftWing);
+        pigeonGroup.add(rightWing);
+
+        // Interactive Hitbox
+        const hitBoxGeo = new THREE.BoxGeometry(3, 3, 3);
+        const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
+        const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
+        pigeonGroup.add(hitBox);
+
+        // Particles System
+        const particles = [];
+        const particleGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+
+        function spawnParticles(position) {
+            for(let i=0; i<5; i++) {
+                const p = new THREE.Mesh(particleGeo, cyanMaterial);
+                p.position.copy(position);
+                p.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.2,
+                    (Math.random() - 0.5) * 0.2 + 0.1,
+                    (Math.random() - 0.5) * 0.2
+                );
+                p.life = 1.0;
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        // --- INTERACTION & RAYCASTING ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        let recoilTimer = 0;
+
+        window.addEventListener('pointerdown', (event) => {
+            if (event.target.tagName === 'BUTTON') return; // Ignore UI clicks
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(hitBox);
+
+            if (intersects.length > 0) {
+                // Click successful
+                state.crumbs += state.clickPower;
+                playSound('peck');
+                
+                // Recoil animation
+                recoilTimer = 0.15;
+                pigeonGroup.position.z = -0.5;
+                pigeonGroup.scale.set(0.9, 0.9, 0.9);
+
+                // Particles
+                spawnParticles(intersects[0].point);
+
+                // Floating Text
+                const text = document.createElement('div');
+                text.className = 'floating-text';
+                text.innerText = `+${state.clickPower}`;
+                text.style.left = event.clientX + 'px';
+                text.style.top = event.clientY + 'px';
+                document.body.appendChild(text);
+                setTimeout(() => text.remove(), 1000);
+
+                updateUI();
+            }
+        });
+
+        // --- UPGRADE LOGIC ---
+        window.buyUpgrade = function(type) {
+            const cost = state.costs[type];
+            if (state.crumbs >= cost) {
+                state.crumbs -= cost;
+                state.owned[type]++;
+                state.costs[type] = Math.floor(cost * 1.5);
+                playSound('upgrade');
+                calculateStats();
+                updateUI();
+            }
+        };
+
+        function calculateStats() {
+            state.clickPower = 1 + (state.owned.cpu * 1);
+            
+            let baseCps = (state.owned.auto * 0.5) + (state.owned.solar * 5);
+            let multiplier = 1 + (state.owned.quantum * 0.5);
+            state.cps = baseCps * multiplier;
+        }
+
+        function updateUI() {
+            document.getElementById('crumb-count').innerText = Math.floor(state.crumbs);
+            document.getElementById('cps-count').innerText = state.cps.toFixed(1);
+            document.getElementById('click-power').innerText = state.clickPower;
+
+            ['auto', 'cpu', 'solar', 'quantum'].forEach(type => {
+                const btn = document.getElementById(`upg-${type}`);
+                const costSpan = document.getElementById(`cost-${type}`);
+                costSpan.innerText = state.costs[type] + ' C';
+                btn.disabled = state.crumbs < state.costs[type];
+            });
+        }
+
+        // --- GAME LOOP & ANIMATION ---
+        let lastTime = performance.now();
+        let saveTimer = 0;
+        let bobTimer = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now();
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            // Idle Bobbing
+            bobTimer += dt * 2;
+            pigeonGroup.position.y = Math.sin(bobTimer) * 0.1;
+            headGroup.rotation.x = Math.sin(bobTimer * 2) * 0.1;
+
+            // Recoil Recovery
+            if (recoilTimer > 0) {
+                recoilTimer -= dt;
+                pigeonGroup.position.z += (0 - pigeonGroup.position.z) * 0.1;
+                pigeonGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+            }
+
+            // Particles update
+            for(let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.position.add(p.velocity);
+                p.velocity.y -= 0.01; // gravity
+                p.life -= dt;
+                p.material.opacity = p.life;
+                if (p.life <= 0) {
+                    scene.remove(p);
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Passive Crumbs Generation
+            if (state.cps > 0) {
+                state.crumbs += state.cps * dt;
+                updateUI();
+            }
+
+            // Auto-Save every 5 seconds
+            saveTimer += dt;
+            if (saveTimer > 5) {
+                localStorage.setItem('pci3_save', JSON.stringify(state));
+                saveTimer = 0;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        calculateStats();
+        updateUI();
+        animate();
+    </script>
+</body>
+</html>
