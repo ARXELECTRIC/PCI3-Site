@@ -1,450 +1,646 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full w-full overflow-hidden">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PCI3 Cyber-Pigeon Clicker</title>
+    <title>PCI3 — Pigeon Clicker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js for 3D Pigeon rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: '#F9F6EE',
+                        charcoal: '#181A1D',
+                        terracotta: '#D95D39',
+                        amber: '#E6A11D',
+                        brass: '#B8860B',
+                        sage: '#6A8A73'
+                    },
+                    fontFamily: {
+                        heading: ['Syne', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'retro-lg': '8px 8px 0px 0px #181A1D',
+                        'retro-sm': '4px 4px 0px 0px #181A1D',
+                    }
+                }
+            }
+        }
+    </script>
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap');
-
-        :root {
-            --cyan: #00f3ff;
-            --dark: #090a0f;
-            --panel: rgba(9, 10, 15, 0.85);
-        }
-
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--dark);
-            font-family: 'Fira Code', monospace;
-            color: var(--cyan);
-            user-select: none;
-        }
-
-        /* Topographic / Grid HUD Background */
-        #bg-overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
+        /* Cream background with dark gray grid lines */
+        body {
+            background-color: #F9F6EE;
+            background-size: 32px 32px;
             background-image: 
-                linear-gradient(rgba(0, 243, 255, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
-            background-size: 40px 40px;
+                linear-gradient(to right, rgba(50, 55, 65, 0.22) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(50, 55, 65, 0.22) 1px, transparent 1px);
+        }
+
+        .vintage-border {
+            border: 3px solid #181A1D;
+        }
+
+        .brass-plate {
+            background: linear-gradient(135deg, #e5c158 0%, #b8860b 50%, #8a6203 100%);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* Glass Reflection / Glare Overlay */
+        .glass-overlay {
+            background: linear-gradient(
+                135deg, 
+                rgba(255, 255, 255, 0.25) 0%, 
+                rgba(255, 255, 255, 0.05) 40%, 
+                transparent 50%, 
+                rgba(255, 255, 255, 0.1) 80%,
+                rgba(255, 255, 255, 0.2) 100%
+            );
             pointer-events: none;
-            z-index: 1;
         }
 
-        #canvas-container {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0;
+        .btn-retro {
+            transition: all 0.15s ease-out;
         }
 
-        /* Sci-Fi HUD Panels */
-        .hud-panel {
-            position: absolute;
-            z-index: 10;
-            background: var(--panel);
-            border: 1px solid rgba(0, 243, 255, 0.3);
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1);
-            backdrop-filter: blur(5px);
-            padding: 20px;
+        .btn-retro:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px 0px #181A1D !important;
+        }
+
+        /* Custom Scrollbar for Shop */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F9F6EE;
+            border-left: 2px solid #181A1D;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #181A1D;
             border-radius: 4px;
-        }
-
-        #stats-panel {
-            top: 20px;
-            left: 20px;
-            min-width: 250px;
-        }
-
-        #stats-panel h1 {
-            margin: 0 0 10px 0;
-            font-size: 1.2rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border-bottom: 1px solid var(--cyan);
-            padding-bottom: 5px;
-        }
-
-        .stat-line {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-
-        #upgrades-panel {
-            top: 20px;
-            right: 20px;
-            width: 300px;
-        }
-
-        .upgrade-btn {
-            background: transparent;
-            border: 1px solid rgba(0, 243, 255, 0.4);
-            color: var(--cyan);
-            font-family: 'Fira Code', monospace;
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            text-align: left;
-            transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .upgrade-btn:hover:not(:disabled) {
-            background: rgba(0, 243, 255, 0.1);
-            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.3);
-        }
-
-        .upgrade-btn:disabled {
-            color: #444;
-            border-color: #333;
-            cursor: not-allowed;
-        }
-
-        .upgrade-name { font-weight: bold; display: block; margin-bottom: 4px; }
-        .upgrade-cost { font-size: 0.8rem; opacity: 0.8; float: right; }
-
-        /* Floating Text */
-        .floating-text {
-            position: absolute;
-            color: var(--cyan);
-            font-weight: bold;
-            pointer-events: none;
-            z-index: 20;
-            animation: floatUp 1s ease-out forwards;
-            text-shadow: 0 0 8px var(--cyan);
-        }
-
-        @keyframes floatUp {
-            0% { transform: translateY(0) scale(1); opacity: 1; }
-            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
         }
     </style>
 </head>
-<body>
+<body class="h-full w-full flex flex-col items-center justify-between p-3 md:p-6 select-none overflow-hidden text-charcoal">
 
-    <div id="bg-overlay"></div>
-    <div id="canvas-container"></div>
+    <!-- TOP HEADER -->
+    <header class="w-full max-w-6xl flex items-center justify-between z-10 mb-2">
+        <div class="flex items-center gap-3 bg-cream vintage-border px-4 py-2 rounded-xl shadow-retro-sm">
+            <div class="w-7 h-7 bg-terracotta vintage-border rounded-lg flex items-center justify-center text-cream font-heading font-extrabold text-sm">
+                P3
+            </div>
+            <span class="font-mono font-bold text-xs uppercase tracking-wider text-charcoal">PCI3 // Pigeon Clicker Engine</span>
+        </div>
 
-    <div id="stats-panel" class="hud-panel">
-        <h1>PCI3 Data Core</h1>
-        <div class="stat-line"><span>DATA CRUMBS:</span> <span id="crumb-count">0</span></div>
-        <div class="stat-line"><span>CRUMBS / SEC:</span> <span id="cps-count">0.0</span></div>
-        <div class="stat-line"><span>CLICK POWER:</span> <span id="click-power">1</span></div>
-    </div>
+        <div class="flex items-center gap-3">
+            <div class="bg-cream vintage-border px-4 py-1.5 rounded-xl shadow-retro-sm flex items-center gap-2 font-mono text-xs font-bold">
+                <i data-lucide="cookie" class="w-4 h-4 text-amber"></i>
+                <span>Crumbs: <strong id="score-display" class="text-terracotta text-sm">0</strong></span>
+            </div>
+            <button id="audio-toggle-btn" class="btn-retro bg-cream hover:bg-cream/80 vintage-border p-2 rounded-xl shadow-retro-sm flex items-center gap-1.5 font-mono text-xs font-bold">
+                <i data-lucide="volume-2" class="w-4 h-4 text-terracotta"></i>
+                <span id="audio-status" class="hidden sm:inline">Sound: ON</span>
+            </button>
+        </div>
+    </header>
 
-    <div id="upgrades-panel" class="hud-panel">
-        <h1 style="margin: 0 0 15px 0; font-size: 1rem; border-bottom: 1px solid var(--cyan); padding-bottom: 5px;">SYSTEM UPGRADES</h1>
+    <!-- MAIN GAME LAYOUT (3D Mirror Center + Shop & Stats Sidebar) -->
+    <div class="w-full max-w-6xl flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center justify-center overflow-hidden my-auto">
         
-        <button class="upgrade-btn" id="upg-auto" onclick="buyUpgrade('auto')">
-            <span class="upgrade-cost" id="cost-auto">15 C</span>
-            <span class="upgrade-name">Auto-Peckers</span>
-            <span style="font-size: 0.75rem;">+0.5 CPS per drone</span>
-        </button>
+        <!-- LEFT/CENTER: 3D MIRROR CONTAINER -->
+        <main class="lg:col-span-7 flex flex-col items-center justify-center relative">
+            
+            <div class="relative bg-charcoal p-3 sm:p-5 rounded-[2.5rem] vintage-border shadow-retro-lg flex flex-col items-center transition-all duration-300">
+                
+                <!-- Metallic/Brass Outer Bevel Accent -->
+                <div class="absolute -top-3 px-6 py-1 bg-amber vintage-border rounded-full shadow-retro-sm z-20">
+                    <span class="font-mono text-[10px] font-extrabold text-charcoal uppercase tracking-widest">CPC-CRUMB-8000</span>
+                </div>
 
-        <button class="upgrade-btn" id="upg-cpu" onclick="buyUpgrade('cpu')">
-            <span class="upgrade-cost" id="cost-cpu">50 C</span>
-            <span class="upgrade-name">Overclocked CPU</span>
-            <span style="font-size: 0.75rem;">+1 Crumb per click</span>
-        </button>
+                <!-- Mirror Canvas Wrapper (Clickable for Crumbs!) -->
+                <div id="click-canvas-container" class="relative w-[280px] h-[340px] sm:w-[380px] sm:h-[440px] rounded-[2rem] overflow-hidden vintage-border bg-gradient-to-b from-slate-800 to-slate-950 cursor-pointer group">
+                    
+                    <!-- 3D ThreeJS Scene Canvas -->
+                    <canvas id="mirror-canvas" class="w-full h-full block"></canvas>
 
-        <button class="upgrade-btn" id="upg-solar" onclick="buyUpgrade('solar')">
-            <span class="upgrade-cost" id="cost-solar">200 C</span>
-            <span class="upgrade-name">Feather Solar Arrays</span>
-            <span style="font-size: 0.75rem;">+5 CPS</span>
-        </button>
+                    <!-- Glass Reflection / Glare Overlay -->
+                    <div class="glass-overlay absolute inset-0 z-10"></div>
 
-        <button class="upgrade-btn" id="upg-quantum" onclick="buyUpgrade('quantum')">
-            <span class="upgrade-cost" id="cost-quantum">1000 C</span>
-            <span class="upgrade-name">Quantum Coo Synth</span>
-            <span style="font-size: 0.75rem;">Massive CPS Boost</span>
-        </button>
+                    <!-- Subtle Vignette / Grime Frame -->
+                    <div class="absolute inset-0 z-10 pointer-events-none rounded-[2rem] shadow-[inset_0_0_40px_rgba(0,0,0,0.6)]"></div>
+
+                    <!-- Click Instruction Overlay -->
+                    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 bg-cream/90 backdrop-blur-sm vintage-border px-3 py-1 rounded-full font-mono text-[11px] font-bold text-charcoal pointer-events-none group-hover:scale-105 transition-transform">
+                        ✨ Click Mirror to Feed & Collect Crumbs! ✨
+                    </div>
+
+                    <!-- Toast Overlay for Pigeon Thoughts -->
+                    <div id="pigeon-thought" class="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-cream vintage-border px-3 py-1.5 rounded-lg shadow-retro-sm font-mono text-xs font-bold text-charcoal opacity-0 transition-all duration-300 pointer-events-none">
+                        *Coo!*
+                    </div>
+                </div>
+
+                <!-- BRASS TITLE PLATE AT BOTTOM OF MIRROR -->
+                <div class="mt-3 w-full brass-plate vintage-border rounded-xl px-4 py-2 text-center shadow-retro-sm">
+                    <h1 class="font-heading font-extrabold text-base sm:text-lg text-charcoal tracking-wider uppercase leading-none drop-shadow-sm">
+                        CPS: <span id="cps-display">0.0</span> CRUMBS / SEC
+                    </h1>
+                </div>
+
+            </div>
+
+        </main>
+
+        <!-- RIGHT: CLICKER SHOP & UPGRADES -->
+        <aside class="lg:col-span-5 bg-cream vintage-border rounded-[2rem] p-4 sm:p-5 shadow-retro-lg flex flex-col h-[420px] sm:h-[480px]">
+            <div class="flex items-center justify-between mb-3 pb-2 border-b-2 border-charcoal">
+                <h2 class="font-heading font-extrabold text-lg uppercase flex items-center gap-2">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 text-terracotta"></i> Pigeon Market
+                </h2>
+                <span class="font-mono text-xs font-bold bg-amber/20 px-2.5 py-1 rounded-lg vintage-border">Upgrades & Roost</span>
+            </div>
+
+            <!-- Shop Items List -->
+            <div id="shop-list" class="flex-1 overflow-y-auto space-y-3 pr-1">
+                <!-- Dynamically populated via JS -->
+            </div>
+        </aside>
+
     </div>
 
-    <!-- Three.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- INTERACTIVE PIGEON CONTROLS FOOTER -->
+    <footer class="w-full max-w-5xl z-10 mt-2">
+        <div class="bg-cream vintage-border p-3 rounded-2xl shadow-retro-lg flex flex-wrap items-center justify-center gap-2 sm:gap-3">
+            
+            <button id="act-peck" class="btn-retro bg-terracotta hover:bg-terracotta/90 text-cream font-mono font-bold text-xs px-3 py-2 rounded-xl vintage-border shadow-retro-sm flex items-center gap-1.5">
+                <i data-lucide="hand" class="w-4 h-4"></i> Peck Glass
+            </button>
+
+            <button id="act-tilt" class="btn-retro bg-amber hover:bg-amber/90 text-charcoal font-mono font-bold text-xs px-3 py-2 rounded-xl vintage-border shadow-retro-sm flex items-center gap-1.5">
+                <i data-lucide="rotate-cw" class="w-4 h-4"></i> Tilt Head
+            </button>
+
+            <button id="act-coo" class="btn-retro bg-sage hover:bg-sage/90 text-cream font-mono font-bold text-xs px-3 py-2 rounded-xl vintage-border shadow-retro-sm flex items-center gap-1.5">
+                <i data-lucide="music" class="w-4 h-4"></i> Coo
+            </button>
+
+            <button id="toggle-shades" class="btn-retro bg-cream hover:bg-cream/80 text-charcoal font-mono font-bold text-xs px-3 py-2 rounded-xl vintage-border shadow-retro-sm flex items-center gap-1.5">
+                <i data-lucide="glasses" class="w-4 h-4 text-terracotta"></i> Shades
+            </button>
+
+        </div>
+    </footer>
 
     <script>
-        // --- GAME STATE & STORAGE ---
-        let state = {
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        /* ===================================================
+           GAME STATE & ECONOMY
+           =================================================== */
+        let game = {
             crumbs: 0,
-            cps: 0,
+            totalEarned: 0,
             clickPower: 1,
-            costs: { auto: 15, cpu: 50, solar: 200, quantum: 1000 },
-            owned: { auto: 0, cpu: 0, solar: 0, quantum: 0 }
+            cps: 0,
+            buildings: {
+                crumbFountain: { name: 'Crumb Fountain', cost: 15, cps: 0.5, owned: 0, icon: 'droplet' },
+                parkBench: { name: 'Park Bench', cost: 100, cps: 4, owned: 0, icon: 'armchair' },
+                breadTruck: { name: 'Bread Delivery Truck', cost: 1100, cps: 32, owned: 0, icon: 'truck' },
+                sourdoughFactory: { name: 'Sourdough Factory', cost: 12000, cps: 260, owned: 0, icon: 'factory' },
+                pigeonGod: { name: 'Statue of the Mega Pigeon', cost: 130000, cps: 1400, owned: 0, icon: 'landmark' }
+            }
         };
 
-        const savedState = localStorage.getItem('pci3_save');
-        if (savedState) {
-            state = { ...state, ...JSON.parse(savedState) };
-        }
+        /* ===================================================
+           AUDIO SYNTHESIZER
+           =================================================== */
+        let audioCtx = null;
+        let soundEnabled = true;
 
-        // --- WEB AUDIO API (Synth Sounds) ---
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
-
-        function playSound(type) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            if (type === 'peck') {
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.1);
-            } else if (type === 'upgrade') {
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.2);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.3);
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
         }
 
-        // --- THREE.JS SCENE SETUP ---
+        function playCooSound() {
+            if (!soundEnabled) return;
+            initAudio();
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                const now = audioCtx.currentTime;
+                osc.frequency.setValueAtTime(320, now);
+                osc.frequency.exponentialRampToValueAtTime(220, now + 0.4);
+                osc.frequency.exponentialRampToValueAtTime(180, now + 0.7);
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.8);
+            } catch (e) {}
+        }
+
+        function playPeckSound() {
+            if (!soundEnabled) return;
+            initAudio();
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1200, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.05);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.06);
+            } catch (e) {}
+        }
+
+        document.getElementById('audio-toggle-btn').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            document.getElementById('audio-status').innerText = soundEnabled ? 'Sound: ON' : 'Sound: OFF';
+            if (soundEnabled) initAudio();
+        });
+
+
+        /* ===================================================
+           THREE.JS 3D PIGEON SCENE SETUP
+           =================================================== */
+        const canvas = document.getElementById('mirror-canvas');
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x090a0f, 0.05);
+        scene.background = new THREE.Color(0x181A1D);
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1, 5);
+        const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+        camera.position.set(0, 0.5, 3.8);
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
 
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0x222233);
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         scene.add(ambientLight);
-        
-        const cyanLight = new THREE.PointLight(0x00f3ff, 2, 10);
-        cyanLight.position.set(2, 3, 2);
-        scene.add(cyanLight);
 
-        // --- ROBOTIC PIGEON MODEL ---
+        const spotLight = new THREE.SpotLight(0xffffff, 1.2);
+        spotLight.position.set(2, 4, 3);
+        spotLight.castShadow = true;
+        scene.add(spotLight);
+
+        const rimLight = new THREE.DirectionalLight(0xE6A11D, 0.8);
+        rimLight.position.set(-3, 2, -2);
+        scene.add(rimLight);
+
+        /* --- PIGEON MESH HIERARCHY --- */
         const pigeonGroup = new THREE.Group();
         scene.add(pigeonGroup);
 
-        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1c23, roughness: 0.3, metalness: 0.8 });
-        const cyanMaterial = new THREE.MeshBasicMaterial({ color: 0x00f3ff });
+        const featherMaterial = new THREE.MeshStandardMaterial({ color: 0x808a95, roughness: 0.6, metalness: 0.1 });
+        const neckIridescentMaterial = new THREE.MeshStandardMaterial({ color: 0x4a8d7c, roughness: 0.3, metalness: 0.4 });
+        const beakMaterial = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.4 });
+        const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xff6600 });
+        const pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
-        // Body (Armor plated)
-        const bodyGeo = new THREE.BoxGeometry(1.5, 1, 2);
-        const body = new THREE.Mesh(bodyGeo, darkMaterial);
-        pigeonGroup.add(body);
+        // 1. Main Body
+        const bodyGeo = new THREE.SphereGeometry(0.75, 24, 24);
+        bodyGeo.scale(0.85, 1.0, 1.15);
+        const bodyMesh = new THREE.Mesh(bodyGeo, featherMaterial);
+        bodyMesh.castShadow = true;
+        pigeonGroup.add(bodyMesh);
 
-        // Head
-        const headGroup = new THREE.Group();
-        headGroup.position.set(0, 0.8, 0.8);
-        const headGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-        const head = new THREE.Mesh(headGeo, darkMaterial);
-        headGroup.add(head);
+        // 2. Wings
+        const wingGeo = new THREE.ConeGeometry(0.5, 1.2, 16);
+        wingGeo.rotateX(Math.PI / 2);
+        wingGeo.scale(0.3, 0.7, 1.0);
 
-        // Beak (Cyan optic)
-        const beakGeo = new THREE.ConeGeometry(0.2, 0.5, 4);
-        const beak = new THREE.Mesh(beakGeo, cyanMaterial);
-        beak.rotation.x = Math.PI / 2;
-        beak.position.set(0, -0.1, 0.6);
-        headGroup.add(beak);
-
-        // Cyber Eye
-        const eyeGeo = new THREE.SphereGeometry(0.15, 16, 16);
-        const eye = new THREE.Mesh(eyeGeo, cyanMaterial);
-        eye.position.set(0.4, 0.1, 0);
-        const eye2 = eye.clone();
-        eye2.position.set(-0.4, 0.1, 0);
-        headGroup.add(eye);
-        headGroup.add(eye2);
-
-        pigeonGroup.add(headGroup);
-
-        // Wings
-        const wingGeo = new THREE.BoxGeometry(0.2, 0.8, 1.8);
-        const leftWing = new THREE.Mesh(wingGeo, darkMaterial);
-        leftWing.position.set(0.85, 0.1, 0);
-        const rightWing = new THREE.Mesh(wingGeo, darkMaterial);
-        rightWing.position.set(-0.85, 0.1, 0);
+        const leftWing = new THREE.Mesh(wingGeo, featherMaterial);
+        leftWing.position.set(0.65, 0.1, -0.1);
+        leftWing.rotation.z = -Math.PI / 8;
         pigeonGroup.add(leftWing);
+
+        const rightWing = new THREE.Mesh(wingGeo, featherMaterial);
+        rightWing.position.set(-0.65, 0.1, -0.1);
+        rightWing.rotation.z = Math.PI / 8;
         pigeonGroup.add(rightWing);
 
-        // Interactive Hitbox
-        const hitBoxGeo = new THREE.BoxGeometry(3, 3, 3);
-        const hitBoxMat = new THREE.MeshBasicMaterial({ visible: false });
-        const hitBox = new THREE.Mesh(hitBoxGeo, hitBoxMat);
-        pigeonGroup.add(hitBox);
+        // 3. Neck & Head
+        const neckHeadGroup = new THREE.Group();
+        neckHeadGroup.position.set(0, 0.45, 0.4);
+        pigeonGroup.add(neckHeadGroup);
 
-        // Particles System
-        const particles = [];
-        const particleGeo = new THREE.BoxGeometry(0.05, 0.05, 0.05);
+        const neckGeo = new THREE.CylinderGeometry(0.32, 0.42, 0.4, 16);
+        const neckMesh = new THREE.Mesh(neckGeo, neckIridescentMaterial);
+        neckMesh.position.y = 0.1;
+        neckHeadGroup.add(neckMesh);
 
-        function spawnParticles(position) {
-            for(let i=0; i<5; i++) {
-                const p = new THREE.Mesh(particleGeo, cyanMaterial);
-                p.position.copy(position);
-                p.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.2,
-                    (Math.random() - 0.5) * 0.2 + 0.1,
-                    (Math.random() - 0.5) * 0.2
-                );
-                p.life = 1.0;
-                scene.add(p);
-                particles.push(p);
-            }
+        const headGeo = new THREE.SphereGeometry(0.38, 20, 20);
+        const headMesh = new THREE.Mesh(headGeo, featherMaterial);
+        headMesh.position.set(0, 0.35, 0.05);
+        neckHeadGroup.add(headMesh);
+
+        const beakGeo = new THREE.ConeGeometry(0.08, 0.32, 12);
+        beakGeo.rotateX(Math.PI / 2);
+        const beakMesh = new THREE.Mesh(beakGeo, beakMaterial);
+        beakMesh.position.set(0, 0.3, 0.48);
+        neckHeadGroup.add(beakMesh);
+
+        const cereGeo = new THREE.SphereGeometry(0.06, 10, 10);
+        const cereMaterial = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.8 });
+        const cereMesh = new THREE.Mesh(cereGeo, cereMaterial);
+        cereMesh.position.set(0, 0.34, 0.4);
+        neckHeadGroup.add(cereMesh);
+
+        const eyeGeo = new THREE.SphereGeometry(0.07, 12, 12);
+        const pupilGeo = new THREE.SphereGeometry(0.04, 12, 12);
+
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+        leftEye.position.set(0.3, 0.38, 0.22);
+        const leftPupil = new THREE.Mesh(pupilGeo, pupilMaterial);
+        leftPupil.position.set(0.33, 0.38, 0.26);
+        neckHeadGroup.add(leftEye, leftPupil);
+
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMaterial);
+        rightEye.position.set(-0.3, 0.38, 0.22);
+        const rightPupil = new THREE.Mesh(pupilGeo, pupilMaterial);
+        rightPupil.position.set(-0.33, 0.38, 0.26);
+        neckHeadGroup.add(rightEye, rightPupil);
+
+        /* --- ACCESSORIES --- */
+        // High visibility, chunky cool shades positioned directly over the eyes
+        const shadesGroup = new THREE.Group();
+        const glassLensMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.9, emissive: 0x111111 });
+        const frameMat = new THREE.MeshStandardMaterial({ color: 0xD95D39, roughness: 0.2, metalness: 0.5 });
+        
+        // Left lens & right lens (larger and clearly protruding forward)
+        const lensGeo = new THREE.BoxGeometry(0.3, 0.2, 0.08);
+        const leftLens = new THREE.Mesh(lensGeo, glassLensMat);
+        leftLens.position.set(0.22, 0.38, 0.35);
+        
+        const rightLens = new THREE.Mesh(lensGeo, glassLensMat);
+        rightLens.position.set(-0.22, 0.38, 0.35);
+
+        // Bold frame bridge connecting them
+        const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 0.06), frameMat);
+        bridge.position.set(0, 0.44, 0.35);
+
+        // Side arms / temples for depth
+        const templeGeo = new THREE.BoxGeometry(0.04, 0.04, 0.4);
+        const leftTemple = new THREE.Mesh(templeGeo, frameMat);
+        leftTemple.position.set(0.36, 0.38, 0.18);
+        leftTemple.rotation.y = 0.2;
+
+        const rightTemple = new THREE.Mesh(templeGeo, frameMat);
+        rightTemple.position.set(-0.36, 0.38, 0.18);
+        rightTemple.rotation.y = -0.2;
+
+        shadesGroup.add(leftLens, rightLens, bridge, leftTemple, rightTemple);
+        shadesGroup.visible = false;
+        neckHeadGroup.add(shadesGroup);
+
+        // Orbit Controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 + 0.1;
+        controls.minDistance = 2.0;
+        controls.maxDistance = 5.5;
+
+
+        /* ===================================================
+           CLICKING & ANIMATION LOGIC
+           =================================================== */
+        let time = 0;
+        let isPecking = false;
+        let peckProgress = 0;
+        let isTilting = false;
+        let tiltTargetAngle = 0;
+        let currentTilt = 0;
+
+        const thoughtBubble = document.getElementById('pigeon-thought');
+
+        function showThought(text) {
+            thoughtBubble.innerText = text;
+            thoughtBubble.classList.remove('opacity-0');
+            thoughtBubble.classList.add('opacity-100');
+            setTimeout(() => {
+                thoughtBubble.classList.remove('opacity-100');
+                thoughtBubble.classList.add('opacity-0');
+            }, 1800);
         }
 
-        // --- INTERACTION & RAYCASTING ---
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        
-        let recoilTimer = 0;
+        // Main Mirror Click Handler (Generates Crumbs & Triggers Pecking)
+        document.getElementById('click-canvas-container').addEventListener('click', (e) => {
+            game.crumbs += game.clickPower;
+            game.totalEarned += game.clickPower;
+            playPeckSound();
 
-        window.addEventListener('pointerdown', (event) => {
-            if (event.target.tagName === 'BUTTON') return; // Ignore UI clicks
-
-            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            isPecking = true;
+            peckProgress = 0;
             
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObject(hitBox);
-
-            if (intersects.length > 0) {
-                // Click successful
-                state.crumbs += state.clickPower;
-                playSound('peck');
-                
-                // Recoil animation
-                recoilTimer = 0.15;
-                pigeonGroup.position.z = -0.5;
-                pigeonGroup.scale.set(0.9, 0.9, 0.9);
-
-                // Particles
-                spawnParticles(intersects[0].point);
-
-                // Floating Text
-                const text = document.createElement('div');
-                text.className = 'floating-text';
-                text.innerText = `+${state.clickPower}`;
-                text.style.left = event.clientX + 'px';
-                text.style.top = event.clientY + 'px';
-                document.body.appendChild(text);
-                setTimeout(() => text.remove(), 1000);
-
-                updateUI();
-            }
+            // Spawn floating crumb number
+            spawnFloatingCrumb(e.clientX, e.clientY, `+${game.clickPower}`);
+            updateDisplay();
         });
 
-        // --- UPGRADE LOGIC ---
-        window.buyUpgrade = function(type) {
-            const cost = state.costs[type];
-            if (state.crumbs >= cost) {
-                state.crumbs -= cost;
-                state.owned[type]++;
-                state.costs[type] = Math.floor(cost * 1.5);
-                playSound('upgrade');
-                calculateStats();
-                updateUI();
-            }
-        };
+        function spawnFloatingCrumb(x, y, text) {
+            const el = document.createElement('div');
+            el.innerText = text;
+            el.className = 'fixed z-50 font-mono font-extrabold text-amber text-sm pointer-events-none transition-all duration-700 ease-out';
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            document.body.appendChild(el);
 
-        function calculateStats() {
-            state.clickPower = 1 + (state.owned.cpu * 1);
-            
-            let baseCps = (state.owned.auto * 0.5) + (state.owned.solar * 5);
-            let multiplier = 1 + (state.owned.quantum * 0.5);
-            state.cps = baseCps * multiplier;
+            setTimeout(() => {
+                el.style.transform = `translateY(-50px) scale(1.2)`;
+                el.style.opacity = '0';
+            }, 20);
+
+            setTimeout(() => {
+                el.remove();
+            }, 750);
         }
 
-        function updateUI() {
-            document.getElementById('crumb-count').innerText = Math.floor(state.crumbs);
-            document.getElementById('cps-count').innerText = state.cps.toFixed(1);
-            document.getElementById('click-power').innerText = state.clickPower;
+        // Action Buttons
+        document.getElementById('act-peck').addEventListener('click', () => {
+            isPecking = true;
+            peckProgress = 0;
+            playPeckSound();
+            showThought('*Peck!*');
+        });
 
-            ['auto', 'cpu', 'solar', 'quantum'].forEach(type => {
-                const btn = document.getElementById(`upg-${type}`);
-                const costSpan = document.getElementById(`cost-${type}`);
-                costSpan.innerText = state.costs[type] + ' C';
-                btn.disabled = state.crumbs < state.costs[type];
-            });
+        document.getElementById('act-tilt').addEventListener('click', () => {
+            isTilting = true;
+            tiltTargetAngle = (Math.random() > 0.5 ? 1 : -1) * (0.4 + Math.random() * 0.4);
+            showThought('???');
+        });
+
+        document.getElementById('act-coo').addEventListener('click', () => {
+            playCooSound();
+            showThought('♪ Cooooo~ ♪');
+        });
+
+        document.getElementById('toggle-shades').addEventListener('click', (e) => {
+            shadesGroup.visible = !shadesGroup.visible;
+            e.currentTarget.classList.toggle('bg-amber');
+            showThought(shadesGroup.visible ? 'Cool & collected.' : 'Shades off.');
+        });
+
+
+        /* ===================================================
+           SHOP & UPGRADE RENDERING
+           =================================================== */
+        function renderShop() {
+            const shopList = document.getElementById('shop-list');
+            shopList.innerHTML = '';
+
+            for (const [key, b] of Object.entries(game.buildings)) {
+                const canAfford = game.crumbs >= b.cost;
+                const itemEl = document.createElement('div');
+                itemEl.className = `p-3 rounded-xl vintage-border flex items-center justify-between transition-all ${canAfford ? 'bg-cream hover:bg-amber/10 cursor-pointer shadow-retro-sm' : 'bg-cream/40 opacity-70 cursor-not-allowed'}`;
+                
+                itemEl.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-charcoal text-cream flex items-center justify-center vintage-border">
+                            <i data-lucide="${b.icon}" class="w-5 h-5 text-amber"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-heading font-extrabold text-sm">${b.name}</h4>
+                            <p class="font-mono text-[11px] text-charcoal/70">+${b.cps} CPS each</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="font-mono font-extrabold text-xs text-terracotta block">${Math.floor(b.cost)} Crumbs</span>
+                        <span class="font-mono text-[10px] bg-charcoal text-cream px-2 py-0.5 rounded-md">Owned: ${b.owned}</span>
+                    </div>
+                `;
+
+                if (canAfford) {
+                    itemEl.addEventListener('click', () => {
+                        game.crumbs -= b.cost;
+                        b.owned++;
+                        b.cost *= 1.15; // Standard exponential cost scaling
+                        recalculateCPS();
+                        renderShop();
+                        updateDisplay();
+                    });
+                }
+
+                shopList.appendChild(itemEl);
+            }
+            lucide.createIcons();
         }
 
-        // --- GAME LOOP & ANIMATION ---
-        let lastTime = performance.now();
-        let saveTimer = 0;
-        let bobTimer = 0;
+        function recalculateCPS() {
+            let totalCPS = 0;
+            for (const b of Object.values(game.buildings)) {
+                totalCPS += b.owned * b.cps;
+            }
+            game.cps = totalCPS;
+        }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const now = performance.now();
-            const dt = (now - lastTime) / 1000;
-            lastTime = now;
+        function updateDisplay() {
+            document.getElementById('score-display').innerText = Math.floor(game.crumbs).toLocaleString();
+            document.getElementById('cps-display').innerText = game.cps.toFixed(1);
+        }
 
-            // Idle Bobbing
-            bobTimer += dt * 2;
-            pigeonGroup.position.y = Math.sin(bobTimer) * 0.1;
-            headGroup.rotation.x = Math.sin(bobTimer * 2) * 0.1;
 
-            // Recoil Recovery
-            if (recoilTimer > 0) {
-                recoilTimer -= dt;
-                pigeonGroup.position.z += (0 - pigeonGroup.position.z) * 0.1;
-                pigeonGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+        /* ===================================================
+           GAME LOOP & TICKER (10 FPS CPS Updates)
+           =================================================== */
+        let lastTick = performance.now();
+
+        function gameLoop(now) {
+            requestAnimationFrame(gameLoop);
+            const delta = (now - lastTick) / 1000;
+            if (delta >= 0.1) {
+                if (game.cps > 0) {
+                    game.crumbs += game.cps * delta;
+                    game.totalEarned += game.cps * delta;
+                    updateDisplay();
+                    renderShop(); // Refresh affordability styling
+                }
+                lastTick = now;
             }
 
-            // Particles update
-            for(let i = particles.length - 1; i >= 0; i--) {
-                const p = particles[i];
-                p.position.add(p.velocity);
-                p.velocity.y -= 0.01; // gravity
-                p.life -= dt;
-                p.material.opacity = p.life;
-                if (p.life <= 0) {
-                    scene.remove(p);
-                    particles.splice(i, 1);
+            // 3D Animation update
+            time += 0.04;
+            pigeonGroup.position.y = Math.sin(time * 2) * 0.03;
+
+            if (!isPecking && !isTilting) {
+                const headBob = Math.pow(Math.sin(time * 3), 5) * 0.12;
+                neckHeadGroup.position.z = 0.4 + headBob;
+                neckHeadGroup.rotation.z = Math.sin(time * 0.5) * 0.05;
+            }
+
+            if (isPecking) {
+                peckProgress += 0.15;
+                neckHeadGroup.position.z = 0.4 + Math.sin(peckProgress) * 0.45;
+                neckHeadGroup.rotation.x = Math.sin(peckProgress) * 0.5;
+
+                if (peckProgress >= Math.PI) {
+                    isPecking = false;
+                    neckHeadGroup.rotation.x = 0;
                 }
             }
 
-            // Passive Crumbs Generation
-            if (state.cps > 0) {
-                state.crumbs += state.cps * dt;
-                updateUI();
+            if (isTilting) {
+                currentTilt += (tiltTargetAngle - currentTilt) * 0.15;
+                neckHeadGroup.rotation.z = currentTilt;
+
+                if (Math.abs(tiltTargetAngle - currentTilt) < 0.02) {
+                    setTimeout(() => {
+                        tiltTargetAngle = 0;
+                        if (Math.abs(currentTilt) < 0.02) isTilting = false;
+                    }, 600);
+                }
             }
 
-            // Auto-Save every 5 seconds
-            saveTimer += dt;
-            if (saveTimer > 5) {
-                localStorage.setItem('pci3_save', JSON.stringify(state));
-                saveTimer = 0;
-            }
-
+            controls.update();
             renderer.render(scene, camera);
         }
 
+        // Window Resize
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            camera.aspect = width / height;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(width, height);
         });
 
-        // Initialize
-        calculateStats();
-        updateUI();
-        animate();
+        // Initialize App on Window Load
+        window.onload = function() {
+            renderShop();
+            updateDisplay();
+            requestAnimationFrame(gameLoop);
+        };
     </script>
 </body>
 </html>
